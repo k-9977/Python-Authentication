@@ -65,5 +65,33 @@ def register():
     }, 201
 
 
+@app.route("/login", methods=["POST"])
+def login():
+    from models import User
+
+    data = request.get_json()
+
+    username = data.get("username")
+    password = data.get("password")
+
+    if not username or not password:
+        return {
+            "error": "Username and password are required"
+        }, 400
+
+    user = User.query.filter_by(username=username).first()
+
+    if not user:
+        return {"error": "Invalid username or password"}, 401
+
+    if not user.check_password(password):
+        return {"error": "Invalid username or password"}, 401
+
+    return {
+        "message": "Login successful",
+        "username": user.username
+    }, 200
+
+
 if __name__ == "__main__":
     app.run(debug=True)
