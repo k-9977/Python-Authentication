@@ -1,9 +1,11 @@
 from flask import Flask, request
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash
+import jwt
+from datetime import datetime, timedelta, timezone
 
 app = Flask(__name__)
-
+app.config["SECRET_KEY"] = "dev-secret-key-change-later"
 # MySQL database connection
 app.config["SQLALCHEMY_DATABASE_URI"] = (
     "mysql+pymysql://root:7777@localhost:3306/python_auth"
@@ -87,10 +89,45 @@ def login():
     if not user.check_password(password):
         return {"error": "Invalid username or password"}, 401
 
+    token = jwt.encode(
+        {
+            "user_id": user.id,
+            "username": user.username,
+            "exp": datetime.now(timezone.utc) + timedelta(hours=1)
+        },
+        app.config["SECRET_KEY"],
+        algorithm="HS256"
+    )
     return {
         "message": "Login successful",
-        "username": user.username
+        "username": user.username,
+        "token": token
     }, 200
+
+
+@app.route("/protected", methods=["GET"])
+def protected():
+    auth_header = request.headers.get("Authorization")
+
+    if not auth_header:
+        return {"error": "Authorization token is required"}, 401
+
+    try:
+        token = auth_header.split(" ")[1]
+
+        payload = jwt.decode(
+            token,
+            app.config["SECRET_KEY"],
+            algorithms=["HS256"]
+        )
+
+        return {
+            "message": "You have access to the protected route",
+            "username": payload["username"]
+        }, 200
+
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        return {"error": "Invalid or expired token"}, 401
 
 
 if __name__ == "__main__":
