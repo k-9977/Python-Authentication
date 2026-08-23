@@ -1,11 +1,17 @@
 from flask import Flask, request
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash
+from dotenv import load_dotenv
+import os
 import jwt
 from datetime import datetime, timedelta, timezone
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "dev-secret-key-change-later"
+
+load_dotenv()
+
+app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
+
 # MySQL database connection
 app.config["SQLALCHEMY_DATABASE_URI"] = (
     "mysql+pymysql://root:7777@localhost:3306/python_auth"
