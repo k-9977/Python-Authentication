@@ -136,5 +136,38 @@ def protected():
         return {"error": "Invalid or expired token"}, 401
 
 
+@app.route("/me", methods=["GET"])
+def me():
+    from models import User
+
+    auth_header = request.headers.get("Authorization")
+
+    if not auth_header:
+        return {"error": "Authorization token is required"}, 401
+
+    try:
+        token = auth_header.split(" ")[1]
+
+        payload = jwt.decode(
+            token,
+            app.config["SECRET_KEY"],
+            algorithms=["HS256"]
+        )
+
+        user = User.query.get(payload["user_id"])
+
+        if not user:
+            return {"error": "User not found"}, 404
+
+        return {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email
+        }, 200
+
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        return {"error": "Invalid or expired token"}, 401
+
+
 if __name__ == "__main__":
     app.run(debug=True)
