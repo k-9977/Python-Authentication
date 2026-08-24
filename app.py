@@ -113,6 +113,8 @@ def login():
 
 @app.route("/protected", methods=["GET"])
 def protected():
+    from models import RevokedToken
+
     auth_header = request.headers.get("Authorization")
 
     if not auth_header:
@@ -120,6 +122,11 @@ def protected():
 
     try:
         token = auth_header.split(" ")[1]
+
+        revoked = RevokedToken.query.filter_by(token=token).first()
+
+        if revoked:
+            return {"error": "Token has been revoked"}, 401
 
         payload = jwt.decode(
             token,
@@ -138,7 +145,7 @@ def protected():
 
 @app.route("/me", methods=["GET"])
 def me():
-    from models import User
+    from models import User, RevokedToken
 
     auth_header = request.headers.get("Authorization")
 
@@ -147,6 +154,11 @@ def me():
 
     try:
         token = auth_header.split(" ")[1]
+
+        revoked = RevokedToken.query.filter_by(token=token).first()
+
+        if revoked:
+            return {"error": "Token has been revoked"}, 401
 
         payload = jwt.decode(
             token,
@@ -167,6 +179,38 @@ def me():
 
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         return {"error": "Invalid or expired token"}, 401
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    from models import RevokedToken
+
+    auth_header = request.headers.get("Authorization")
+
+    if not auth_header:
+        return {"error": "Authorization token is required"}, 401
+
+    try:
+        token = auth_header.split(" ")[1]
+
+        jwt.decode(
+            token,
+            app.config["SECRET_KEY"],
+            algorithms=["HS256"]
+        )
+
+        revoked_token = RevokedToken(token=token)
+
+        db.session.add(revoked_token)
+        db.session.commit()
+
+        return {"message": "Logout successful"}, 200
+
+    except jwt.ExpiredSignatureError:
+        return {"error": "Token has already expired"}, 401
+
+    except jwt.InvalidTokenError:
+        return {"error": "Invalid token"}, 401
 
 
 if __name__ == "__main__":
