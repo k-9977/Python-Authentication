@@ -75,7 +75,7 @@ def register():
 
 @app.route("/login", methods=["POST"])
 def login():
-    from models import User
+    from models import User, RefreshToken
 
     data = request.get_json()
 
@@ -95,20 +95,101 @@ def login():
     if not user.check_password(password):
         return {"error": "Invalid username or password"}, 401
 
-    token = jwt.encode(
+    # Create access token
+    access_token = jwt.encode(
         {
             "user_id": user.id,
             "username": user.username,
-            "exp": datetime.now(timezone.utc) + timedelta(hours=1)
+            "type": "access",
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=15)
         },
         app.config["SECRET_KEY"],
         algorithm="HS256"
     )
+
+    # Create refresh token
+    refresh_token = jwt.encode(
+        {
+            "user_id": user.id,
+            "username": user.username,
+            "type": "refresh",
+            "exp": datetime.now(timezone.utc) + timedelta(days=7)
+        },
+        app.config["SECRET_KEY"],
+        algorithm="HS256"
+    )
+
+    # Save refresh token in database
+    refresh_token_record = RefreshToken(
+        token=refresh_token,
+        user_id=user.id,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7)
+    )
+
+    db.session.add(refresh_token_record)
+    db.session.commit()
+
     return {
         "message": "Login successful",
         "username": user.username,
-        "token": token
+        "access_token": access_token,
+        "refresh_token": refresh_token
     }, 200
+
+
+@app.route("/refresh", methods=["POST"])
+def refresh():
+    from models import RefreshToken
+
+    data = request.get_json()
+
+    refresh_token = data.get("refresh_token")
+
+    if not refresh_token:
+        return {"error": "Refresh token is required"}, 401
+
+    try:
+        # Check if refresh token exists in database
+        stored_token = RefreshToken.query.filter_by(
+            token=refresh_token
+        ).first()
+
+        if not stored_token:
+            return {"error": "Invalid refresh token"}, 401
+
+        # Decode and validate refresh token
+        payload = jwt.decode(
+            refresh_token,
+            app.config["SECRET_KEY"],
+            algorithms=["HS256"]
+        )
+
+        # Make sure this is actually a refresh token
+        if payload.get("type") != "refresh":
+            return {"error": "Invalid token type"}, 401
+
+        # Create a new access token
+        new_access_token = jwt.encode(
+            {
+                "user_id": payload["user_id"],
+                "username": payload["username"],
+                "type": "access",
+                "exp": datetime.now(timezone.utc) + timedelta(minutes=15)
+            },
+            app.config["SECRET_KEY"],
+            algorithm="HS256"
+        )
+
+        return {
+            "message": "Access token refreshed successfully",
+            "access_token": new_access_token
+        }, 200
+
+    except jwt.ExpiredSignatureError:
+        return {"error": "Refresh token has expired"}, 401
+
+    except jwt.InvalidTokenError:
+        return {"error": "Invalid refresh token"}, 401
 
 
 @app.route("/protected", methods=["GET"])
