@@ -1,5 +1,5 @@
-from flask import Flask, request
-from flask_sqlalchemy import SQLAlchemy
+from flask import Flask, request, send_from_directory
+from extensions import db
 from werkzeug.security import generate_password_hash
 from dotenv import load_dotenv
 import os
@@ -18,13 +18,17 @@ app.config["SQLALCHEMY_DATABASE_URI"] = (
 )
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-db = SQLAlchemy()
 db.init_app(app)
+
+
+@app.route("/<path:filename>")
+def frontend(filename):
+    return send_from_directory("frontend", filename)
 
 
 @app.route("/")
 def home():
-    return {"message": "Authentication API is running"}
+    return send_from_directory("frontend", "index.html")
 
 
 @app.route("/db-test")
@@ -214,6 +218,8 @@ def protected():
             app.config["SECRET_KEY"],
             algorithms=["HS256"]
         )
+        if payload.get("type") != "access":
+            return {"error": "Access token required"}, 401
 
         return {
             "message": "You have access to the protected route",
@@ -230,11 +236,11 @@ def me():
 
     auth_header = request.headers.get("Authorization")
 
-    if not auth_header:
-        return {"error": "Authorization token is required"}, 401
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return {"error": "Bearer token is required"}, 401
 
     try:
-        token = auth_header.split(" ")[1]
+        token = auth_header.split(" ", 1)[1]
 
         revoked = RevokedToken.query.filter_by(token=token).first()
 
@@ -246,6 +252,9 @@ def me():
             app.config["SECRET_KEY"],
             algorithms=["HS256"]
         )
+
+        if payload.get("type") != "access":
+            return {"error": "Access token required"}, 401
 
         user = User.query.get(payload["user_id"])
 
