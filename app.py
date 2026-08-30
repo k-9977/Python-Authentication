@@ -50,10 +50,17 @@ def register():
     email = data.get("email")
     password = data.get("password")
 
-    if not username or not email or not password:
-        return {
-            "error": "Username, email, and password are required"
-        }, 400
+    if not isinstance(username, str) or not username.strip():
+        return {"error": "Username is required"}, 400
+
+    if not isinstance(email, str) or not email.strip():
+        return {"error": "Email is required"}, 400
+
+    if not isinstance(password, str) or not password:
+        return {"error": "Password is required"}, 400
+
+    username = username.strip()
+    email = email.strip()
 
     if User.query.filter_by(username=username).first():
         return {"error": "Username already exists"}, 409
