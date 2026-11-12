@@ -31,18 +31,7 @@ The project provides a complete authentication flow with user registration, logi
 * Werkzeug
 * python-dotenv
 
-## Project Structure
 
-```text
-Python-Authentication/
-│
-├── app.py
-├── models.py
-├── extensions.py
-├── requirements.txt
-├── .gitignore
-└── README.md
-```
 
 ## Setup
 
